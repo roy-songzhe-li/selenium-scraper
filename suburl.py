@@ -2,20 +2,20 @@ import json
 
 
 def preprocess_json_file(json_file):
-    # 读取原始 JSON 文件
+    # Read the original JSON file
     with open(json_file, 'r', encoding='utf-8') as file:
         lines = file.readlines()
 
-    # 添加 '[' 到头部
+    # Add '[' at the beginning
     lines.insert(0, '[\n')
-    # 在尾部删除最后一个逗号并添加 ']'
+    # Remove the last comma at the end and add ']'
     for i in range(len(lines) - 1, -1, -1):
         if lines[i].strip().endswith(','):
             lines[i] = lines[i].rstrip(',\n') + '\n'
             break
     lines.append(']\n')
 
-    # 将修改后的内容写入临时 JSON 文件
+    # Write the modified content to a temporary JSON file
     temp_json_file = 'temp_' + json_file
     with open(temp_json_file, 'w', encoding='utf-8') as file:
         file.writelines(lines)
@@ -24,30 +24,30 @@ def preprocess_json_file(json_file):
 
 
 def extract_sub_urls(json_file, output_file):
-    # 预处理 JSON 文件
+    # Preprocess the JSON file
     temp_json_file = preprocess_json_file(json_file)
 
-    # 打开并读取预处理后的 JSON 文件
+    # Open and read the preprocessed JSON file
     with open(temp_json_file, 'r', encoding='utf-8') as file:
         data = json.load(file)
 
-    # 打开一个文本文件用于写入
+    # Open a text file for writing
     with open(output_file, 'w', encoding='utf-8') as file:
-        # 遍历列表中的每个元素
+        # Iterate through each element in the list
         for item in data:
-            # 检查是否存在 'sub_url' 键
+            # Check if the 'sub_url' key exists
             if 'sub_url' in item:
-                # 获取 sub_url
+                # Get the sub_url
                 sub_url = item['sub_url']
-                # 写入文件并添加换行符
+                # Write to the file and add a newline
                 file.write(sub_url + '\n')
-                # 打印到终端
+                # Print to the terminal
                 print(sub_url)
 
 
-# 文件路径
-json_file = 'test.json'
+# File paths
+json_file = 'www_northadelaidepodiatry_com_au.json'
 output_file = 'sub_urls.txt'
 
-# 提取 sub_urls 并写入文件
+# Extract sub_urls and write to file
 extract_sub_urls(json_file, output_file)
