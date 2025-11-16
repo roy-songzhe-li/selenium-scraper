@@ -48,18 +48,38 @@ class TestSpider(scrapy.Spider):
         
         # Step 1: Click all Load More buttons first
         self.logger.info("🔄 Loading all cards (clicking Load More repeatedly)...")
+        
+        # Track card count to detect when no more cards are being added
+        prev_card_count = 0
+        no_change_count = 0
+        
         while True:
+            # Count current cards
+            current_cards = driver.find_elements(By.CSS_SELECTOR, 'div.card-item-info')
+            current_count = len(current_cards)
+            
+            # Check if card count stopped increasing
+            if current_count == prev_card_count:
+                no_change_count += 1
+                if no_change_count >= 3:
+                    self.logger.info(f"⚠️  Card count unchanged for 3 clicks - stopping")
+                    self.logger.info(f"✓ Final card count on page: {current_count}")
+                    break
+            else:
+                no_change_count = 0
+            
             # Try to click Load More button
             if not self.click_load_more(driver):
                 self.logger.info(f"✓ All cards loaded! (clicked {self.load_more_clicks} times)")
                 break
             
             self.load_more_clicks += 1
+            prev_card_count = current_count
             
             if self.load_more_clicks % 10 == 0:
-                self.logger.info(f"⏳ Clicked Load More {self.load_more_clicks} times...")
+                self.logger.info(f"⏳ Clicked {self.load_more_clicks} times | Cards on page: {current_count}")
             
-            # Wait for new content to load (increased for reliability)
+            # Wait for new content to load
             time.sleep(2)
         
         # Step 2: Now extract all cards at once
