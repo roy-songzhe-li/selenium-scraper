@@ -125,7 +125,9 @@ LOG_STDOUT = False
 
 # Proxy settings
 PROXY_ROTATION_ENABLED = True  # Set to False to disable proxy rotation
-PROXY_FILES = [
-    'Free_Proxy_List.txt',
-    'Free_Proxy_List_2.txt'
+
+# Proxy API endpoints (fetch latest proxies in real-time)
+PROXY_API_URLS = [
+    'https://proxylist.geonode.com/api/proxy-list?country=JP&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
+    'https://proxylist.geonode.com/api/proxy-list?country=AU&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
 ]

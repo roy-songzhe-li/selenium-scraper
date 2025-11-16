@@ -4,6 +4,7 @@ import logging
 import csv
 import random
 import os
+import requests
 import undetected_chromedriver as uc
 from scrapy.http import HtmlResponse
 from fake_useragent import UserAgent
@@ -21,7 +22,10 @@ class SeleniumMiddleware(object):
         
         # Default settings (will be overridden by from_crawler)
         self.proxy_enabled = True
-        self.proxy_files = ['Free_Proxy_List.txt', 'Free_Proxy_List_2.txt']
+        self.proxy_api_urls = [
+            'https://proxylist.geonode.com/api/proxy-list?country=JP&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
+            'https://proxylist.geonode.com/api/proxy-list?country=AU&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
+        ]
         
         # Load proxy lists
         self.proxy_list = self.load_proxies()
@@ -33,51 +37,65 @@ class SeleniumMiddleware(object):
         """Create instance from crawler"""
         middleware = cls()
         middleware.proxy_enabled = crawler.settings.getbool('PROXY_ROTATION_ENABLED', True)
-        middleware.proxy_files = crawler.settings.getlist('PROXY_FILES', [
-            'Free_Proxy_List.txt',
-            'Free_Proxy_List_2.txt'
+        middleware.proxy_api_urls = crawler.settings.getlist('PROXY_API_URLS', [
+            'https://proxylist.geonode.com/api/proxy-list?country=JP&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
+            'https://proxylist.geonode.com/api/proxy-list?country=AU&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
         ])
         return middleware
     
     def load_proxies(self):
-        """Load proxies from CSV files"""
+        """Load proxies from Geonode API"""
         proxy_list = []
         
-        project_root = pathlib.Path(__file__).parent.parent
-        
-        for filename in self.proxy_files:
-            filepath = project_root / filename
-            if not filepath.exists():
-                self.logger.warning(f"Proxy file not found: {filepath}")
-                continue
-            
+        for api_url in self.proxy_api_urls:
             try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        # Extract proxy info
-                        ip = row.get('ip', '').strip('"')
-                        port = row.get('port', '').strip('"')
-                        protocols = row.get('protocols', '').strip('"')
-                        anonymity = row.get('anonymityLevel', '').strip('"')
-                        
-                        # Only use elite proxies
-                        if anonymity == 'elite' and ip and port:
-                            proxy_list.append({
-                                'ip': ip,
-                                'port': port,
-                                'protocol': protocols,
-                                'anonymity': anonymity,
-                                'country': row.get('country', '').strip('"')
-                            })
+                self.logger.info(f"Fetching proxies from API: {api_url}")
+                response = requests.get(api_url, timeout=10)
+                response.raise_for_status()
                 
-                self.logger.info(f"Loaded {len(proxy_list)} proxies from {filename}")
+                data = response.json()
+                proxies = data.get('data', [])
+                
+                for proxy_data in proxies:
+                    # Extract proxy info
+                    ip = proxy_data.get('ip', '')
+                    port = proxy_data.get('port', '')
+                    protocols = proxy_data.get('protocols', [])
+                    anonymity = proxy_data.get('anonymityLevel', '')
+                    country = proxy_data.get('country', '')
+                    
+                    # Only use elite proxies
+                    if anonymity == 'elite' and ip and port:
+                        # Use first protocol from list
+                        protocol = protocols[0] if protocols else 'socks5'
+                        
+                        proxy_list.append({
+                            'ip': ip,
+                            'port': str(port),
+                            'protocol': protocol,
+                            'anonymity': anonymity,
+                            'country': country
+                        })
+                
+                self.logger.info(f"Loaded {len(proxies)} proxies from {country} ({len([p for p in proxies if p.get('anonymityLevel') == 'elite'])} elite)")
+                
             except Exception as e:
-                self.logger.error(f"Error loading proxies from {filename}: {e}")
+                self.logger.error(f"Error fetching proxies from API: {e}")
+        
+        # Remove duplicates based on ip:port
+        seen = set()
+        unique_proxies = []
+        for proxy in proxy_list:
+            key = f"{proxy['ip']}:{proxy['port']}"
+            if key not in seen:
+                seen.add(key)
+                unique_proxies.append(proxy)
         
         # Shuffle proxy list for better distribution
-        random.shuffle(proxy_list)
-        return proxy_list
+        random.shuffle(unique_proxies)
+        
+        self.logger.info(f"Total unique elite proxies loaded: {len(unique_proxies)}")
+        return unique_proxies
     
     def get_next_proxy(self):
         """Get next proxy from the list (rotation)"""
