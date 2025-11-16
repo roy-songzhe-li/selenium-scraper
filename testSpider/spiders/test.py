@@ -24,7 +24,7 @@ class TestSpider(scrapy.Spider):
         for url in self.start_urls:
             yield SeleniumRequest(
                 url=url,
-                wait_time=8,
+                wait_time=5,
                 callback=self.parse,
                 dont_filter=True
             )
@@ -40,7 +40,7 @@ class TestSpider(scrapy.Spider):
         # Check for Cloudflare
         if "just a moment" in driver.title.lower():
             self.logger.info("⏳ Waiting for Cloudflare bypass...")
-            time.sleep(5)
+            time.sleep(8)
         
         self.logger.info(f"✓ Page loaded: {driver.title}")
         self.logger.info(f"✓ URL: {driver.current_url}")
@@ -71,7 +71,7 @@ class TestSpider(scrapy.Spider):
             self.logger.info(f"⏳ Loading more cards... (click #{self.load_more_clicks})")
             
             # Wait for new content to load  
-            time.sleep(1)
+            time.sleep(0.8)
             
             # Update response with new page source
             body = str.encode(driver.page_source)
@@ -129,7 +129,7 @@ class TestSpider(scrapy.Spider):
         """Click Load More button if available"""
         try:
             # Wait a bit for any animations
-            time.sleep(1)
+            time.sleep(0.3)
             
             # Try multiple possible selectors for Load More button
             selectors = [
@@ -158,7 +158,7 @@ class TestSpider(scrapy.Spider):
             
             # Scroll to button
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", button)
-            time.sleep(0.3)
+            time.sleep(0.2)
             
             # Try JavaScript click if regular click fails
             try:
