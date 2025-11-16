@@ -19,7 +19,6 @@ class TestSpider(scrapy.Spider):
         self.start_urls = ["https://www.cardladder.com/indexes/pokemon"]
         self.cards_scraped = 0
         self.load_more_clicks = 0
-        self.seen_cards = set()  # Track seen cards to avoid duplicates
 
     def start_requests(self):
         for url in self.start_urls:
@@ -132,15 +131,8 @@ class TestSpider(scrapy.Spider):
                     # Full name: "2021 Pokemon Sword & Shield: Fusion Strike Espeon VMAX #270"
                     full_name = f"{card_set} {name_text} {number_text}".strip()
                     
-                    # Create unique key with tag to handle different grades/variations
-                    unique_key = f"{full_name}|{tag}"
-                    
-                    # Skip if already seen (avoid duplicates)
-                    if unique_key in self.seen_cards:
-                        continue
-                    
-                    self.seen_cards.add(unique_key)
-                    
+                    # Don't skip duplicates - extract ALL cards
+                    # Database will handle uniqueness with upsert
                     item = {
                         'name': full_name,
                         'tag': tag
