@@ -45,40 +45,39 @@ class TestSpider(scrapy.Spider):
         
         self.logger.info(f"✓ Page loaded: {driver.title}")
         self.logger.info(f"✓ URL: {driver.current_url}")
-        self.logger.info("🕷️  Starting card extraction...")
         
-        # Keep clicking Load More until no more data
+        # Step 1: Click all Load More buttons first
+        self.logger.info("🔄 Loading all cards (clicking Load More repeatedly)...")
         while True:
-            # Extract cards from current view
-            cards_extracted = list(self.extract_cards(response, driver))
-            count = len(cards_extracted)
-            
-            # Yield extracted items
-            for item in cards_extracted:
-                yield item
-            
-            if count > 0:
-                self.logger.info(f"✓ Batch: {count} cards | Total: {self.cards_scraped} | Load More clicks: {self.load_more_clicks}")
-            else:
-                self.logger.info(f"⚠️  No new cards found in this batch")
-            
             # Try to click Load More button
-            load_more_result = self.click_load_more(driver)
-            if not load_more_result:
-                self.logger.info("🏁 No more Load More button - scraping complete!")
+            if not self.click_load_more(driver):
+                self.logger.info(f"✓ All cards loaded! (clicked {self.load_more_clicks} times)")
                 break
             
             self.load_more_clicks += 1
-            self.logger.info(f"⏳ Loading more cards... (click #{self.load_more_clicks})")
+            
+            if self.load_more_clicks % 10 == 0:
+                self.logger.info(f"⏳ Clicked Load More {self.load_more_clicks} times...")
             
             # Wait for new content to load  
             time.sleep(0.8)
-            
-            # Update response with new page source
-            body = str.encode(driver.page_source)
-            response = response.replace(body=body)
         
-        self.logger.info(f"Total cards scraped: {self.cards_scraped}")
+        # Step 2: Now extract all cards at once
+        self.logger.info(f"🕷️  Extracting all {self.load_more_clicks * 20}+ cards...")
+        
+        # Update response with final page source
+        body = str.encode(driver.page_source)
+        response = response.replace(body=body)
+        
+        # Extract all cards
+        cards_extracted = list(self.extract_cards(response, driver))
+        
+        # Yield all items
+        for item in cards_extracted:
+            yield item
+        
+        self.logger.info(f"✅ Extraction complete!")
+        self.logger.info(f"📊 Total unique cards: {len(cards_extracted)}")
     
     def extract_cards(self, response, driver):
         """Extract card data from current page using correct selectors"""
