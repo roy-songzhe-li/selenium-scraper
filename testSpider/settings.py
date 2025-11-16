@@ -111,24 +111,17 @@ FEED_EXPORT_ENCODING = "utf8mb4"
 
 # settings.py
 
-# Log file path
-LOG_FILE = "scrapy_log.txt"
-
-# Log level
-# LOG_LEVEL = "INFO"
-
-# Ensure logging is enabled (default is True)
-LOG_ENABLED = True
-
-# Enable log output to stdout for real-time monitoring
-LOG_STDOUT = True
+# Disable file logging - output only to console
+LOG_FILE = None
 
 # Set log level to INFO to see progress
 LOG_LEVEL = 'INFO'
 
-# Disable output buffering for real-time logs
-import sys
-sys.stdout.reconfigure(line_buffering=True)
+# Ensure logging is enabled
+LOG_ENABLED = True
+
+# Output to stdout
+LOG_STDOUT = True
 
 # Proxy settings
 PROXY_ROTATION_ENABLED = True  # Set to False to disable proxy rotation
