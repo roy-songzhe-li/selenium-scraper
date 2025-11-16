@@ -59,8 +59,8 @@ class TestSpider(scrapy.Spider):
             if self.load_more_clicks % 10 == 0:
                 self.logger.info(f"⏳ Clicked Load More {self.load_more_clicks} times...")
             
-            # Wait for new content to load  
-            time.sleep(0.8)
+            # Wait for new content to load (increased for reliability)
+            time.sleep(2)
         
         # Step 2: Now extract all cards at once
         self.logger.info(f"🕷️  Extracting all {self.load_more_clicks * 20}+ cards...")
@@ -135,7 +135,7 @@ class TestSpider(scrapy.Spider):
         """Click Load More button if available"""
         try:
             # Wait a bit for any animations
-            time.sleep(0.3)
+            time.sleep(0.5)
             
             # Try multiple possible selectors for Load More button
             selectors = [
@@ -164,7 +164,7 @@ class TestSpider(scrapy.Spider):
             
             # Scroll to button
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", button)
-            time.sleep(0.2)
+            time.sleep(0.5)
             
             # Try JavaScript click if regular click fails
             try:
