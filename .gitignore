@@ -28,6 +28,9 @@ scrapy_log.txt
 *.xml
 *.xlsx
 
+# Proxy cache
+working_proxies.json
+
 # IDE
 .vscode/
 .idea/

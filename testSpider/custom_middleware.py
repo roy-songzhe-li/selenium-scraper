@@ -10,6 +10,7 @@ from scrapy.http import HtmlResponse
 from fake_useragent import UserAgent
 from scrapy_selenium import SeleniumRequest
 from selenium.webdriver.support.ui import WebDriverWait
+from testSpider.proxy_validator import ProxyValidator
 
 
 class SeleniumMiddleware(object):
@@ -30,6 +31,7 @@ class SeleniumMiddleware(object):
         ]
         
         # Load proxy lists
+        self.proxy_validator = ProxyValidator()
         self.proxy_list = self.load_proxies()
         self.current_proxy_index = 0
         self.logger.info(f"Loaded {len(self.proxy_list)} proxies")
@@ -133,9 +135,15 @@ class SeleniumMiddleware(object):
     
     def load_proxies(self):
         """Load proxies from multiple API sources"""
+        # Try to load from cache first
+        cached_proxies = self.proxy_validator.load_cache()
+        if cached_proxies:
+            self.logger.info(f"Using {len(cached_proxies)} cached working proxies")
+            return cached_proxies
+        
+        # Fetch from APIs
         all_proxies = []
         
-        # Load from configured API URLs
         for api_url in self.proxy_api_urls:
             if 'geonode.com' in api_url:
                 proxies = self.load_proxies_from_geonode(api_url)
@@ -147,7 +155,7 @@ class SeleniumMiddleware(object):
             
             all_proxies.extend(proxies)
         
-        # Remove duplicates based on ip:port
+        # Remove duplicates
         seen = set()
         unique_proxies = []
         for proxy in all_proxies:
@@ -156,11 +164,22 @@ class SeleniumMiddleware(object):
                 seen.add(key)
                 unique_proxies.append(proxy)
         
-        # Shuffle proxy list for better distribution
-        random.shuffle(unique_proxies)
+        self.logger.info(f"Fetched {len(unique_proxies)} unique proxies from APIs")
         
-        self.logger.info(f"Total unique proxies loaded: {len(unique_proxies)}")
-        return unique_proxies
+        # Validate proxies in background (async)
+        self.logger.info("Validating proxies (testing connectivity)...")
+        working_proxies = self.proxy_validator.validate_proxy_list(unique_proxies, max_test=50)
+        
+        if working_proxies:
+            self.logger.info(f"Found {len(working_proxies)} working proxies")
+            self.proxy_validator.save_cache(working_proxies)
+            random.shuffle(working_proxies)
+            return working_proxies
+        else:
+            # Fallback: use all proxies if none validated (better than nothing)
+            self.logger.warning("No proxies validated successfully, using all proxies")
+            random.shuffle(unique_proxies)
+            return unique_proxies
     
     def get_next_proxy(self):
         """Get next proxy from the list (rotation)"""
