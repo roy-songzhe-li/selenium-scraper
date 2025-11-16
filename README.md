@@ -93,6 +93,23 @@ The project uses `SeleniumMiddleware` which:
 - Handles dynamic content loading
 - Manages browser sessions automatically
 - Supports user agent rotation
+- **Proxy rotation** - Automatically rotates through proxy lists
+
+#### Proxy Rotation
+
+The middleware automatically loads and rotates proxies from:
+- `Free_Proxy_List.txt` (AU proxies)
+- `Free_Proxy_List_2.txt` (JP proxies)
+
+Features:
+- Loads all elite proxies from CSV files
+- Automatically rotates to next proxy for each browser session
+- Supports SOCKS4, SOCKS5, and HTTP protocols
+- Shuffles proxy list for better distribution
+
+The proxy will change when:
+- Spider starts (first request)
+- Browser session is reset (after max_requests_per_driver)
 
 ## Creating Your Own Spider
 

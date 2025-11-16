@@ -1,7 +1,9 @@
 import zipfile
 import pathlib
 import logging
-# from msilib.schema import Directory
+import csv
+import random
+import os
 import undetected_chromedriver as uc
 from scrapy.http import HtmlResponse
 from fake_useragent import UserAgent
@@ -10,18 +12,91 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 
 class SeleniumMiddleware(object):
-    proxyArgsList = [
-    
-    ]
     
     def __init__(self, max_requests_per_driver=1000000):
         self.driver = None
         self.request_count = 0
         self.max_requests_per_driver = max_requests_per_driver
         self.logger = logging.getLogger(__name__)
+        
+        # Default settings (will be overridden by from_crawler)
+        self.proxy_enabled = True
+        self.proxy_files = ['Free_Proxy_List.txt', 'Free_Proxy_List_2.txt']
+        
+        # Load proxy lists
+        self.proxy_list = self.load_proxies()
+        self.current_proxy_index = 0
+        self.logger.info(f"Loaded {len(self.proxy_list)} proxies")
+
+    @classmethod
+    def from_crawler(cls, crawler):
+        """Create instance from crawler"""
+        middleware = cls()
+        middleware.proxy_enabled = crawler.settings.getbool('PROXY_ROTATION_ENABLED', True)
+        middleware.proxy_files = crawler.settings.getlist('PROXY_FILES', [
+            'Free_Proxy_List.txt',
+            'Free_Proxy_List_2.txt'
+        ])
+        return middleware
+    
+    def load_proxies(self):
+        """Load proxies from CSV files"""
+        proxy_list = []
+        
+        project_root = pathlib.Path(__file__).parent.parent
+        
+        for filename in self.proxy_files:
+            filepath = project_root / filename
+            if not filepath.exists():
+                self.logger.warning(f"Proxy file not found: {filepath}")
+                continue
+            
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        # Extract proxy info
+                        ip = row.get('ip', '').strip('"')
+                        port = row.get('port', '').strip('"')
+                        protocols = row.get('protocols', '').strip('"')
+                        anonymity = row.get('anonymityLevel', '').strip('"')
+                        
+                        # Only use elite proxies
+                        if anonymity == 'elite' and ip and port:
+                            proxy_list.append({
+                                'ip': ip,
+                                'port': port,
+                                'protocol': protocols,
+                                'anonymity': anonymity,
+                                'country': row.get('country', '').strip('"')
+                            })
+                
+                self.logger.info(f"Loaded {len(proxy_list)} proxies from {filename}")
+            except Exception as e:
+                self.logger.error(f"Error loading proxies from {filename}: {e}")
+        
+        # Shuffle proxy list for better distribution
+        random.shuffle(proxy_list)
+        return proxy_list
+    
+    def get_next_proxy(self):
+        """Get next proxy from the list (rotation)"""
+        if not self.proxy_enabled:
+            return None
+            
+        if not self.proxy_list:
+            self.logger.warning("No proxies available")
+            return None
+        
+        proxy = self.proxy_list[self.current_proxy_index]
+        self.current_proxy_index = (self.current_proxy_index + 1) % len(self.proxy_list)
+        
+        self.logger.info(f"Using proxy: {proxy['ip']}:{proxy['port']} ({proxy['protocol']}) - {proxy['country']}")
+        return proxy
 
     def spider_closed(self, spider):
-        self.driver.quit()
+        if self.driver:
+            self.driver.quit()
 
     def process_request(self, request, spider):
         self.logger.debug(f"Processing request: {request.url}")
@@ -124,6 +199,29 @@ class SeleniumMiddleware(object):
         options.add_argument("--enable-cookies")
         options.add_argument(f'--user-agent={ua.random}')
         
+        # Add proxy configuration
+        proxy = self.get_next_proxy()
+        if proxy:
+            protocol = proxy['protocol']
+            ip = proxy['ip']
+            port = proxy['port']
+            
+            # Configure proxy based on protocol
+            if 'socks5' in protocol.lower():
+                proxy_server = f"socks5://{ip}:{port}"
+            elif 'socks4' in protocol.lower():
+                proxy_server = f"socks4://{ip}:{port}"
+            elif 'http' in protocol.lower():
+                proxy_server = f"http://{ip}:{port}"
+            else:
+                # Default to socks5 if protocol not clear
+                proxy_server = f"socks5://{ip}:{port}"
+            
+            options.add_argument(f'--proxy-server={proxy_server}')
+            self.logger.info(f"Configured proxy: {proxy_server}")
+        else:
+            self.logger.warning("No proxy configured - running without proxy")
+        
         prefs = {
             "download_restrictions": 3,
         }
@@ -133,7 +231,6 @@ class SeleniumMiddleware(object):
         
         scriptDirectory = pathlib.Path().absolute()
         # options.add_argument(f"--user-data-dir={scriptDirectory}\\testSpider\\userdata")
-        # options.add_extension(self.getPlugin(**random.choice(self.proxyArgsList)))
         driver = uc.Chrome(options=options, headless=False, use_subprocess=False)
         return driver
 

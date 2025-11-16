@@ -122,3 +122,10 @@ LOG_ENABLED = True
 
 # Disable log output to stdout
 LOG_STDOUT = False
+
+# Proxy settings
+PROXY_ROTATION_ENABLED = True  # Set to False to disable proxy rotation
+PROXY_FILES = [
+    'Free_Proxy_List.txt',
+    'Free_Proxy_List_2.txt'
+]
