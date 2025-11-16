@@ -61,10 +61,10 @@ class SupabasePipeline:
             
             if response.data:
                 self.inserted_count += 1
-                self.logger.info(f"✓ Inserted: {name} ({tag})")
+                if self.inserted_count % 20 == 0:
+                    self.logger.info(f"💾 Saved {self.inserted_count} cards to database")
             else:
                 self.duplicate_count += 1
-                self.logger.debug(f"Duplicate or updated: {name}")
             
         except Exception as e:
             self.error_count += 1

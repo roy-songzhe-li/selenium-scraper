@@ -166,20 +166,20 @@ class SeleniumMiddleware(object):
         
         self.logger.info(f"Fetched {len(unique_proxies)} unique proxies from APIs")
         
-        # Validate proxies in background (async)
+        # Validate proxies
         self.logger.info("Validating proxies (testing connectivity)...")
-        working_proxies = self.proxy_validator.validate_proxy_list(unique_proxies, max_test=50)
+        working_proxies = self.proxy_validator.validate_proxy_list(unique_proxies, max_workers=30, max_test=100)
         
         if working_proxies:
-            self.logger.info(f"Found {len(working_proxies)} working proxies")
+            self.logger.info(f"Found {len(working_proxies)} working proxies - using only validated proxies")
             self.proxy_validator.save_cache(working_proxies)
             random.shuffle(working_proxies)
             return working_proxies
         else:
-            # Fallback: use all proxies if none validated (better than nothing)
-            self.logger.warning("No proxies validated successfully, using all proxies")
-            random.shuffle(unique_proxies)
-            return unique_proxies
+            # If no proxies work, disable proxy usage
+            self.logger.warning("No working proxies found - disabling proxy")
+            self.proxy_enabled = False
+            return []
     
     def get_next_proxy(self):
         """Get next proxy from the list (rotation)"""
@@ -292,13 +292,11 @@ class SeleniumMiddleware(object):
     def driver_return(self):
         options = uc.ChromeOptions()
         ua = UserAgent(browsers=['chrome'])
-        options.add_argument("--window-size=150,500")
-        options.add_argument("--disable-automation")
+        options.add_argument("--window-size=1920,1080")
+        options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--no-sandbox")
-        options.add_argument('--profile-directory=Default')
-        options.add_argument("--lang=en")
-        options.add_argument("--enable-javascript")
-        options.add_argument("--enable-cookies")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--lang=en-US")
         options.add_argument(f'--user-agent={ua.random}')
         
         # Add proxy configuration

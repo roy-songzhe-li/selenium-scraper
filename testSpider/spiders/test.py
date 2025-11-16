@@ -24,7 +24,7 @@ class TestSpider(scrapy.Spider):
         for url in self.start_urls:
             yield SeleniumRequest(
                 url=url,
-                wait_time=10,
+                wait_time=15,  # Cloudflare bypass
                 callback=self.parse,
                 dont_filter=True
             )
@@ -37,69 +37,116 @@ class TestSpider(scrapy.Spider):
             self.logger.error("No driver found in response meta")
             return
         
+        # Check for Cloudflare
+        if "just a moment" in driver.title.lower():
+            self.logger.info("⏳ Waiting for Cloudflare bypass...")
+            time.sleep(10)
+        
+        self.logger.info(f"✓ Page loaded: {driver.title}")
+        self.logger.info(f"✓ URL: {driver.current_url}")
+        self.logger.info("🕷️  Starting card extraction...")
+        
         # Keep clicking Load More until no more data
         while True:
             # Extract cards from current view
-            cards_extracted = self.extract_cards(response, driver)
-            self.logger.info(f"Extracted {cards_extracted} cards from current view")
+            cards_extracted = list(self.extract_cards(response, driver))
+            count = len(cards_extracted)
+            
+            # Yield extracted items
+            for item in cards_extracted:
+                yield item
+            
+            if count > 0:
+                self.logger.info(f"✓ Batch: {count} cards | Total: {self.cards_scraped} | Load More clicks: {self.load_more_clicks}")
+            else:
+                self.logger.info(f"⚠️  No new cards found in this batch")
             
             # Try to click Load More button
-            if not self.click_load_more(driver):
-                self.logger.info("No more Load More button - scraping complete")
+            load_more_result = self.click_load_more(driver)
+            if not load_more_result:
+                self.logger.info("🏁 No more Load More button - scraping complete!")
                 break
             
-            # Wait for new content to load
-            time.sleep(3)
+            self.load_more_clicks += 1
+            self.logger.info(f"⏳ Loading more cards... (click #{self.load_more_clicks})")
+            
+            # Wait for new content to load  
+            time.sleep(2)
             
             # Update response with new page source
             body = str.encode(driver.page_source)
             response = response.replace(body=body)
-            
-            self.load_more_clicks += 1
-            self.logger.info(f"Clicked Load More {self.load_more_clicks} times")
         
         self.logger.info(f"Total cards scraped: {self.cards_scraped}")
     
     def extract_cards(self, response, driver):
         """Extract card data from current page"""
-        count = 0
+        # Find all card links
+        card_links = response.css('a[href*="/card/"]')
         
-        # Find all card elements
-        # Adjust selectors based on actual website structure
-        card_elements = response.css('div.card-item, article.card, div[data-card]')
-        
-        if not card_elements:
-            # Try alternative selectors
-            card_elements = response.css('a[href*="/card/"], div.index-card')
-        
-        for card in card_elements:
+        for card_link in card_links:
             try:
-                # Extract card name
-                name = card.css('h3::text, .card-title::text, .card-name::text').get()
-                if not name:
-                    name = card.css('::text').get()
+                # Get full text content from link
+                text = card_link.css('::text').getall()
+                full_text = ' '.join([t.strip() for t in text if t.strip()])
                 
-                # Extract tag (rarity/type)
-                tag = card.css('.rarity::text, .card-type::text, .badge::text, span.tag::text').get()
+                if not full_text:
+                    continue
                 
-                if name:
-                    name = name.strip()
-                    tag = tag.strip() if tag else ''
+                # Parse card name and tag
+                # Format: "2003 Pokemon Skyridge Charizard #146 Secret Rare ..."
+                parts = full_text.split()
+                
+                # Find where the tag starts (usually after card number #XXX)
+                name_parts = []
+                tag_parts = []
+                found_number = False
+                collecting_tag = False
+                
+                for i, part in enumerate(parts):
+                    if '#' in part:
+                        name_parts.append(part)
+                        found_number = True
+                        # Next significant words are likely the tag
+                        continue
                     
+                    if found_number and not collecting_tag:
+                        # Check if this looks like a tag (Secret, Rare, Holo, etc.)
+                        tag_keywords = ['Secret', 'Rare', 'Holo', 'Gold', 'Star', 'PSA']
+                        if any(keyword.lower() in part.lower() for keyword in tag_keywords):
+                            collecting_tag = True
+                            tag_parts.append(part)
+                        elif not part.replace(',', '').isdigit() and part.lower() not in ['no', 'results', 'pop']:
+                            tag_parts.append(part)
+                    elif collecting_tag:
+                        # Continue collecting tag until we hit PSA or numbers
+                        if 'PSA' in part or part.isdigit():
+                            break
+                        if part.lower() not in ['no', 'results']:
+                            tag_parts.append(part)
+                    else:
+                        name_parts.append(part)
+                
+                name = ' '.join(name_parts).strip()
+                tag = ' '.join(tag_parts).strip() if tag_parts else ''
+                
+                # Clean up common noise words
+                for noise in ['No results', 'No result', 'PSA 10', 'PSA 9', 'Pop']:
+                    name = name.replace(noise, '').strip()
+                    tag = tag.replace(noise, '').strip()
+                
+                if name and len(name) > 10:  # Basic validation
                     item = {
                         'name': name,
                         'tag': tag
                     }
                     
                     self.cards_scraped += 1
-                    count += 1
                     yield item
                     
             except Exception as e:
                 self.logger.error(f"Error extracting card: {e}")
                 continue
-        
-        return count
     
     def click_load_more(self, driver):
         """Click Load More button if available"""
@@ -109,13 +156,10 @@ class TestSpider(scrapy.Spider):
             
             # Try multiple possible selectors for Load More button
             selectors = [
-                "//button[contains(text(), 'Load More')]",
+                "//button[contains(@class, 'btn') and contains(@class, 'secondary') and contains(text(), 'Load more')]",
                 "//button[contains(text(), 'Load more')]",
-                "//button[contains(text(), 'Show More')]",
-                "//a[contains(text(), 'Load More')]",
-                "//button[@class*='load-more']",
-                "//button[@id*='load-more']",
-                "//div[@class*='load-more']//button"
+                "//button[contains(text(), 'Load More')]",
+                "//button[@class='btn secondary']"
             ]
             
             button = None
@@ -139,9 +183,11 @@ class TestSpider(scrapy.Spider):
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", button)
             time.sleep(0.5)
             
-            # Click button
-            button.click()
-            self.logger.info("✓ Clicked Load More button")
+            # Try JavaScript click if regular click fails
+            try:
+                button.click()
+            except:
+                driver.execute_script("arguments[0].click();", button)
             
             return True
             
