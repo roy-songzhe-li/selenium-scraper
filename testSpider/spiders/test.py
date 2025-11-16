@@ -40,7 +40,8 @@ class TestSpider(scrapy.Spider):
         # Check for Cloudflare
         if "just a moment" in driver.title.lower():
             self.logger.info("⏳ Waiting for Cloudflare bypass...")
-            time.sleep(5)        
+            time.sleep(5)
+        
         self.logger.info(f"✓ Page loaded: {driver.title}")
         self.logger.info(f"✓ URL: {driver.current_url}")
         self.logger.info("🕷️  Starting card extraction...")
