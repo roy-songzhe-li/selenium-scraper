@@ -60,6 +60,8 @@ urllib3==2.2.2
 user-agents==2.2.0
 w3lib==2.2.1
 websocket-client==1.8.0
-websockets==12.0
+websockets>=14.0
 wsproto==1.2.0
 zope.interface==6.4.post2
+supabase>=2.0.0
+python-dotenv>=1.0.0
