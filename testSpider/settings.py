@@ -120,8 +120,11 @@ LOG_FILE = "scrapy_log.txt"
 # Ensure logging is enabled (default is True)
 LOG_ENABLED = True
 
-# Disable log output to stdout
-LOG_STDOUT = False
+# Enable log output to stdout for real-time monitoring
+LOG_STDOUT = True
+
+# Set log level to INFO to see progress
+LOG_LEVEL = 'INFO'
 
 # Proxy settings
 PROXY_ROTATION_ENABLED = True  # Set to False to disable proxy rotation

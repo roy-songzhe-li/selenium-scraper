@@ -24,7 +24,7 @@ class TestSpider(scrapy.Spider):
         for url in self.start_urls:
             yield SeleniumRequest(
                 url=url,
-                wait_time=10,
+                wait_time=8,
                 callback=self.parse,
                 dont_filter=True
             )
@@ -71,7 +71,7 @@ class TestSpider(scrapy.Spider):
             self.logger.info(f"⏳ Loading more cards... (click #{self.load_more_clicks})")
             
             # Wait for new content to load  
-            time.sleep(1.5)
+            time.sleep(1)
             
             # Update response with new page source
             body = str.encode(driver.page_source)
@@ -80,64 +80,41 @@ class TestSpider(scrapy.Spider):
         self.logger.info(f"Total cards scraped: {self.cards_scraped}")
     
     def extract_cards(self, response, driver):
-        """Extract card data from current page"""
-        # Find all card links
-        card_links = response.css('a[href*="/card/"]')
+        """Extract card data from current page using correct selectors"""
+        # Find all card items using the actual class structure
+        card_items = response.css('div.card-item-info')
         
-        for card_link in card_links:
+        if not card_items:
+            self.logger.warning("⚠️  No card-item-info elements found")
+            return
+        
+        for card in card_items:
             try:
-                # Get full text content from link
-                text = card_link.css('::text').getall()
-                full_text = ' '.join([t.strip() for t in text if t.strip()])
+                # Extract card set (year + set name)
+                card_set = card.css('div.card-set::text').get()
                 
-                if not full_text:
-                    continue
+                # Extract card name and number
+                card_name_elem = card.css('div.card-name')
+                name_text = card_name_elem.css('span:first-child::text').get()
+                number_text = card_name_elem.css('span:last-child::text').get()
                 
-                # Parse card name and tag
-                # Format: "2003 Pokemon Skyridge Charizard #146 Secret Rare ..."
-                parts = full_text.split()
+                # Extract tag (rarity)
+                tag = card.css('span.grade-variation-chip span:first-child::text').get()
                 
-                # Find where the tag starts (usually after card number #XXX)
-                name_parts = []
-                tag_parts = []
-                found_number = False
-                collecting_tag = False
-                
-                for i, part in enumerate(parts):
-                    if '#' in part:
-                        name_parts.append(part)
-                        found_number = True
-                        # Next significant words are likely the tag
-                        continue
+                # Build full card name
+                if card_set and name_text:
+                    card_set = card_set.strip()
+                    name_text = name_text.strip()
+                    number_text = number_text.strip() if number_text else ''
                     
-                    if found_number and not collecting_tag:
-                        # Check if this looks like a tag (Secret, Rare, Holo, etc.)
-                        tag_keywords = ['Secret', 'Rare', 'Holo', 'Gold', 'Star', 'PSA']
-                        if any(keyword.lower() in part.lower() for keyword in tag_keywords):
-                            collecting_tag = True
-                            tag_parts.append(part)
-                        elif not part.replace(',', '').isdigit() and part.lower() not in ['no', 'results', 'pop']:
-                            tag_parts.append(part)
-                    elif collecting_tag:
-                        # Continue collecting tag until we hit PSA or numbers
-                        if 'PSA' in part or part.isdigit():
-                            break
-                        if part.lower() not in ['no', 'results']:
-                            tag_parts.append(part)
-                    else:
-                        name_parts.append(part)
-                
-                name = ' '.join(name_parts).strip()
-                tag = ' '.join(tag_parts).strip() if tag_parts else ''
-                
-                # Clean up common noise words
-                for noise in ['No results', 'No result', 'PSA 10', 'PSA 9', 'Pop']:
-                    name = name.replace(noise, '').strip()
-                    tag = tag.replace(noise, '').strip()
-                
-                if name and len(name) > 10:  # Basic validation
+                    # Full name: "2021 Pokemon Sword & Shield: Fusion Strike Espeon VMAX #270"
+                    full_name = f"{card_set} {name_text} {number_text}".strip()
+                    
+                    # Clean tag
+                    tag = tag.strip() if tag else ''
+                    
                     item = {
-                        'name': name,
+                        'name': full_name,
                         'tag': tag
                     }
                     
@@ -145,7 +122,7 @@ class TestSpider(scrapy.Spider):
                     yield item
                     
             except Exception as e:
-                self.logger.error(f"Error extracting card: {e}")
+                self.logger.error(f"❌ Error extracting card: {e}")
                 continue
     
     def click_load_more(self, driver):
