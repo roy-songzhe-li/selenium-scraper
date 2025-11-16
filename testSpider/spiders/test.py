@@ -19,6 +19,7 @@ class TestSpider(scrapy.Spider):
         self.start_urls = ["https://www.cardladder.com/indexes/pokemon"]
         self.cards_scraped = 0
         self.load_more_clicks = 0
+        self.seen_cards = set()  # Track seen cards to avoid duplicates
 
     def start_requests(self):
         for url in self.start_urls:
@@ -109,6 +110,12 @@ class TestSpider(scrapy.Spider):
                     
                     # Full name: "2021 Pokemon Sword & Shield: Fusion Strike Espeon VMAX #270"
                     full_name = f"{card_set} {name_text} {number_text}".strip()
+                    
+                    # Skip if already seen (avoid duplicates)
+                    if full_name in self.seen_cards:
+                        continue
+                    
+                    self.seen_cards.add(full_name)
                     
                     # Clean tag
                     tag = tag.strip() if tag else ''

@@ -126,6 +126,10 @@ LOG_STDOUT = True
 # Set log level to INFO to see progress
 LOG_LEVEL = 'INFO'
 
+# Disable output buffering for real-time logs
+import sys
+sys.stdout.reconfigure(line_buffering=True)
+
 # Proxy settings
 PROXY_ROTATION_ENABLED = True  # Set to False to disable proxy rotation
 
