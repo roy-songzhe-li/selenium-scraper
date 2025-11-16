@@ -24,7 +24,7 @@ class TestSpider(scrapy.Spider):
         for url in self.start_urls:
             yield SeleniumRequest(
                 url=url,
-                wait_time=15,  # Cloudflare bypass
+                wait_time=10,
                 callback=self.parse,
                 dont_filter=True
             )
@@ -40,8 +40,7 @@ class TestSpider(scrapy.Spider):
         # Check for Cloudflare
         if "just a moment" in driver.title.lower():
             self.logger.info("⏳ Waiting for Cloudflare bypass...")
-            time.sleep(10)
-        
+            time.sleep(5)        
         self.logger.info(f"✓ Page loaded: {driver.title}")
         self.logger.info(f"✓ URL: {driver.current_url}")
         self.logger.info("🕷️  Starting card extraction...")
@@ -71,7 +70,7 @@ class TestSpider(scrapy.Spider):
             self.logger.info(f"⏳ Loading more cards... (click #{self.load_more_clicks})")
             
             # Wait for new content to load  
-            time.sleep(2)
+            time.sleep(1.5)
             
             # Update response with new page source
             body = str.encode(driver.page_source)
@@ -181,7 +180,7 @@ class TestSpider(scrapy.Spider):
             
             # Scroll to button
             driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", button)
-            time.sleep(0.5)
+            time.sleep(0.3)
             
             # Try JavaScript click if regular click fails
             try:

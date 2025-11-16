@@ -166,18 +166,17 @@ class SeleniumMiddleware(object):
         
         self.logger.info(f"Fetched {len(unique_proxies)} unique proxies from APIs")
         
-        # Validate proxies
-        self.logger.info("Validating proxies (testing connectivity)...")
-        working_proxies = self.proxy_validator.validate_proxy_list(unique_proxies, max_workers=30, max_test=100)
+        # Validate proxies (test more, faster)
+        self.logger.info("Validating proxies...")
+        working_proxies = self.proxy_validator.validate_proxy_list(unique_proxies, max_workers=50, max_test=150)
         
         if working_proxies:
-            self.logger.info(f"Found {len(working_proxies)} working proxies - using only validated proxies")
+            self.logger.info(f"✓ Found {len(working_proxies)} working proxies")
             self.proxy_validator.save_cache(working_proxies)
             random.shuffle(working_proxies)
             return working_proxies
         else:
-            # If no proxies work, disable proxy usage
-            self.logger.warning("No working proxies found - disabling proxy")
+            self.logger.warning("⚠️  No working proxies - running without proxy")
             self.proxy_enabled = False
             return []
     
