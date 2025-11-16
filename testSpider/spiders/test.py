@@ -118,8 +118,10 @@ class TestSpider(scrapy.Spider):
                 name_text = card_name_elem.css('span:first-child::text').get()
                 number_text = card_name_elem.css('span:last-child::text').get()
                 
-                # Extract tag (rarity)
-                tag = card.css('span.grade-variation-chip span:first-child::text').get()
+                # Extract ALL chips (rarity + grade)
+                chips = card.css('span.grade-variation-chip span:first-child::text').getall()
+                # Combine all chips into tag (e.g., "Holo PSA 10" or "Full Art Secret Rare CGC 9.5")
+                tag = ' '.join([c.strip() for c in chips if c.strip()])
                 
                 # Build full card name
                 if card_set and name_text:
@@ -130,14 +132,14 @@ class TestSpider(scrapy.Spider):
                     # Full name: "2021 Pokemon Sword & Shield: Fusion Strike Espeon VMAX #270"
                     full_name = f"{card_set} {name_text} {number_text}".strip()
                     
+                    # Create unique key with tag to handle different grades/variations
+                    unique_key = f"{full_name}|{tag}"
+                    
                     # Skip if already seen (avoid duplicates)
-                    if full_name in self.seen_cards:
+                    if unique_key in self.seen_cards:
                         continue
                     
-                    self.seen_cards.add(full_name)
-                    
-                    # Clean tag
-                    tag = tag.strip() if tag else ''
+                    self.seen_cards.add(unique_key)
                     
                     item = {
                         'name': full_name,
