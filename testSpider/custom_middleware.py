@@ -196,8 +196,10 @@ class SeleniumMiddleware(object):
         return proxy
 
     def spider_closed(self, spider):
+        # Don't close browser automatically - keep it open for inspection
         if self.driver:
-            self.driver.quit()
+            self.logger.info("⚠️  Browser window left open for inspection")
+            # self.driver.quit()  # Commented out to keep browser open
 
     def process_request(self, request, spider):
         self.logger.debug(f"Processing request: {request.url}")
