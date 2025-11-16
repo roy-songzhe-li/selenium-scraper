@@ -111,6 +111,23 @@ The proxy will change when:
 - Spider starts (first request)
 - Browser session is reset (after max_requests_per_driver)
 
+**Test Proxy Loading:**
+```bash
+python test_proxy_rotation.py
+```
+
+**Disable Proxy Rotation:**
+Set in `testSpider/settings.py`:
+```python
+PROXY_ROTATION_ENABLED = False
+```
+
+**Proxy Statistics:**
+- Total: 96 elite proxies
+- Australia (AU): 28 proxies
+- Japan (JP): 68 proxies
+- Protocols: SOCKS4 (77), SOCKS5 (19)
+
 ## Creating Your Own Spider
 
 ```python
