@@ -128,6 +128,12 @@ PROXY_ROTATION_ENABLED = True  # Set to False to disable proxy rotation
 
 # Proxy API endpoints (fetch latest proxies in real-time)
 PROXY_API_URLS = [
+    # Geonode API (JSON format, elite proxies, sorted by last checked)
     'https://proxylist.geonode.com/api/proxy-list?country=JP&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
     'https://proxylist.geonode.com/api/proxy-list?country=AU&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
+    
+    # ProxyScrape API (text format, updated every minute)
+    'https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks4&timeout=10000&country=all',
+    'https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks5&timeout=10000&country=all',
+    'https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all',
 ]

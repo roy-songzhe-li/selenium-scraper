@@ -1,4 +1,4 @@
-#!/Users/fs0c13ty/Desktop/ExA/Tasks/testspider/venv/bin/python
+#!/Users/roy-songzhe-li/Desktop/Personal Projects/PTCG/PTCG-Database/selenium-scraper/venv/bin/python3.13
 
 import sys
 import json

@@ -25,6 +25,8 @@ class SeleniumMiddleware(object):
         self.proxy_api_urls = [
             'https://proxylist.geonode.com/api/proxy-list?country=JP&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
             'https://proxylist.geonode.com/api/proxy-list?country=AU&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
+            'https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks4&timeout=10000&country=all',
+            'https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks5&timeout=10000&country=all',
         ]
         
         # Load proxy lists
@@ -40,52 +42,115 @@ class SeleniumMiddleware(object):
         middleware.proxy_api_urls = crawler.settings.getlist('PROXY_API_URLS', [
             'https://proxylist.geonode.com/api/proxy-list?country=JP&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
             'https://proxylist.geonode.com/api/proxy-list?country=AU&limit=500&page=1&sort_by=lastChecked&sort_type=desc',
+            'https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks4&timeout=10000&country=all',
+            'https://api.proxyscrape.com/v2/?request=getproxies&protocol=socks5&timeout=10000&country=all',
         ])
         return middleware
     
-    def load_proxies(self):
-        """Load proxies from Geonode API"""
+    def load_proxies_from_geonode(self, api_url):
+        """Load proxies from Geonode API (JSON format)"""
         proxy_list = []
+        try:
+            self.logger.info(f"Fetching from Geonode API: {api_url}")
+            response = requests.get(api_url, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            proxies = data.get('data', [])
+            
+            for proxy_data in proxies:
+                ip = proxy_data.get('ip', '')
+                port = proxy_data.get('port', '')
+                protocols = proxy_data.get('protocols', [])
+                anonymity = proxy_data.get('anonymityLevel', '')
+                country = proxy_data.get('country', '')
+                
+                # Only use elite proxies
+                if anonymity == 'elite' and ip and port:
+                    protocol = protocols[0] if protocols else 'socks5'
+                    proxy_list.append({
+                        'ip': ip,
+                        'port': str(port),
+                        'protocol': protocol,
+                        'anonymity': anonymity,
+                        'country': country
+                    })
+            
+            self.logger.info(f"Loaded {len(proxy_list)} elite proxies from Geonode")
+            
+        except Exception as e:
+            self.logger.error(f"Error fetching from Geonode API: {e}")
         
-        for api_url in self.proxy_api_urls:
-            try:
-                self.logger.info(f"Fetching proxies from API: {api_url}")
-                response = requests.get(api_url, timeout=10)
-                response.raise_for_status()
-                
-                data = response.json()
-                proxies = data.get('data', [])
-                
-                for proxy_data in proxies:
-                    # Extract proxy info
-                    ip = proxy_data.get('ip', '')
-                    port = proxy_data.get('port', '')
-                    protocols = proxy_data.get('protocols', [])
-                    anonymity = proxy_data.get('anonymityLevel', '')
-                    country = proxy_data.get('country', '')
-                    
-                    # Only use elite proxies
-                    if anonymity == 'elite' and ip and port:
-                        # Use first protocol from list
-                        protocol = protocols[0] if protocols else 'socks5'
-                        
+        return proxy_list
+    
+    def load_proxies_from_proxyscrape(self, api_url):
+        """Load proxies from ProxyScrape API (text format)"""
+        proxy_list = []
+        try:
+            self.logger.info(f"Fetching from ProxyScrape API: {api_url}")
+            response = requests.get(api_url, timeout=10)
+            response.raise_for_status()
+            
+            # Parse protocol from URL
+            if 'protocol=http' in api_url:
+                protocol = 'http'
+            elif 'protocol=socks4' in api_url:
+                protocol = 'socks4'
+            elif 'protocol=socks5' in api_url:
+                protocol = 'socks5'
+            else:
+                protocol = 'http'
+            
+            # Parse country from URL (if available)
+            country = 'Unknown'
+            if 'country=' in api_url:
+                country_param = api_url.split('country=')[1].split('&')[0]
+                country = country_param if country_param != 'all' else 'Mixed'
+            
+            # Parse text response (format: IP:PORT per line)
+            lines = response.text.strip().split('\n')
+            for line in lines:
+                line = line.strip()
+                if ':' in line:
+                    try:
+                        ip, port = line.split(':', 1)
                         proxy_list.append({
-                            'ip': ip,
-                            'port': str(port),
+                            'ip': ip.strip(),
+                            'port': port.strip(),
                             'protocol': protocol,
-                            'anonymity': anonymity,
+                            'anonymity': 'unknown',
                             'country': country
                         })
-                
-                self.logger.info(f"Loaded {len(proxies)} proxies from {country} ({len([p for p in proxies if p.get('anonymityLevel') == 'elite'])} elite)")
-                
-            except Exception as e:
-                self.logger.error(f"Error fetching proxies from API: {e}")
+                    except:
+                        continue
+            
+            self.logger.info(f"Loaded {len(proxy_list)} proxies from ProxyScrape ({protocol})")
+            
+        except Exception as e:
+            self.logger.error(f"Error fetching from ProxyScrape API: {e}")
+        
+        return proxy_list
+    
+    def load_proxies(self):
+        """Load proxies from multiple API sources"""
+        all_proxies = []
+        
+        # Load from configured API URLs
+        for api_url in self.proxy_api_urls:
+            if 'geonode.com' in api_url:
+                proxies = self.load_proxies_from_geonode(api_url)
+            elif 'proxyscrape.com' in api_url:
+                proxies = self.load_proxies_from_proxyscrape(api_url)
+            else:
+                self.logger.warning(f"Unknown API format: {api_url}")
+                continue
+            
+            all_proxies.extend(proxies)
         
         # Remove duplicates based on ip:port
         seen = set()
         unique_proxies = []
-        for proxy in proxy_list:
+        for proxy in all_proxies:
             key = f"{proxy['ip']}:{proxy['port']}"
             if key not in seen:
                 seen.add(key)
@@ -94,7 +159,7 @@ class SeleniumMiddleware(object):
         # Shuffle proxy list for better distribution
         random.shuffle(unique_proxies)
         
-        self.logger.info(f"Total unique elite proxies loaded: {len(unique_proxies)}")
+        self.logger.info(f"Total unique proxies loaded: {len(unique_proxies)}")
         return unique_proxies
     
     def get_next_proxy(self):
