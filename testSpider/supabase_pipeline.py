@@ -53,10 +53,10 @@ class SupabasePipeline:
                 'tag': tag if tag else None
             }
             
-            # Insert into Supabase (upsert to handle duplicates)
+            # Insert into Supabase (upsert to handle duplicates based on name+tag)
             response = self.supabase.table('cards').upsert(
                 card_data,
-                on_conflict='name'
+                on_conflict='name,tag'
             ).execute()
             
             if response.data:

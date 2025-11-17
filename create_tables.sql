@@ -2,17 +2,15 @@
 DROP TABLE IF EXISTS cards CASCADE;
 
 -- Create cards table
--- Note: BIGSERIAL IDs may have gaps due to:
--- 1. Failed insert attempts (ID consumed but row not created)
--- 2. Concurrent transactions
--- 3. UPSERT operations (ID generated then discarded if duplicate found)
--- This is normal PostgreSQL behavior
+-- Note: Removed UNIQUE constraint on name to allow same card with different grades
+-- Each card+grade combination is a separate record
 CREATE TABLE cards (
     id BIGSERIAL PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    tag TEXT,
+    name TEXT NOT NULL,
+    tag TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(name, tag)  -- Unique constraint on name+tag combination
 );
 
 -- Create index on name for faster lookups
